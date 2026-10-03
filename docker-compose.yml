@@ -1,0 +1,41 @@
+services:
+  cockroach:
+    image: cockroachdb/cockroach:v24.2.3
+    command: start-single-node --insecure
+    ports: ["26257:26257", "8080:8080"]
+    healthcheck:
+      test: ["CMD","cockroach","sql","--insecure","--host=localhost:26257","-e","SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.8
+    command: redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M --node-id 0 --check=false --kafka-addr PLAINTEXT://0.0.0.0:9092 --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports: ["9092:9092"]
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+
+  api:
+    build: .
+    env_file: .env
+    ports: ["8000:8000"]
+    depends_on:
+      cockroach:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      redpanda:
+        condition: service_started
+      minio:
+        condition: service_started
